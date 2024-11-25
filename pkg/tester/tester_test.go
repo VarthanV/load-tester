@@ -21,7 +21,7 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 
 func TestProcessStat(t *testing.T) {
 	driver := &driver{
-		responseTimeInSeconds: []int{},
+		responseTimeInSeconds: []float64{},
 	}
 
 	stat := &RequestStat{IsSuccess: true, TimeTakenInSeconds: 5}
@@ -42,7 +42,7 @@ func TestProcessStat(t *testing.T) {
 
 func TestNewDriver(t *testing.T) {
 	driver, err := New(
-		WithPeakConfig(50, 10*time.Minute),
+		WithPeakConfig(50, 10*time.Minute, 10),
 		WithRequestConfig("http://example.com", map[string]string{"key": "value"}, http.StatusOK),
 		WithHeaders(map[string]string{"Content-Type": "application/json"}),
 	)

@@ -3,6 +3,6 @@ package tester
 type Report struct{}
 
 type RequestStat struct {
-	TimeTakenInSeconds int
+	TimeTakenInSeconds float64
 	IsSuccess          bool
 }

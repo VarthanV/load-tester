@@ -41,9 +41,11 @@ type config struct {
 type Option func(*config)
 
 // Option fn to configure peak  limit
-func WithPeakConfig(usersDuringPeakLimit int, reachPeakAfter time.Duration) Option {
+func WithPeakConfig(usersDuringPeakLimit int, reachPeakAfter time.Duration,
+	usersToStartWith int) Option {
 	return func(c *config) {
 		c.ReachPeakAfter = reachPeakAfter
+		c.UsersToStartWith = 10
 		c.TargetUsers = usersDuringPeakLimit
 	}
 }
@@ -77,7 +79,7 @@ type driver struct {
 	usersPerMinute        int
 	endAt                 <-chan time.Time
 	totalNumberOfRequests int
-	responseTimeInSeconds []int
+	responseTimeInSeconds []float64
 	requestsSucceeded     int
 	requestsFailed        int
 }
@@ -86,7 +88,7 @@ func New(opts ...Option) (*driver, error) {
 	d := &driver{
 		mu:                    sync.Mutex{},
 		totalNumberOfRequests: 0,
-		responseTimeInSeconds: make([]int, 0),
+		responseTimeInSeconds: make([]float64, 0),
 		requestsSucceeded:     0,
 		requestsFailed:        0,
 	}
@@ -114,11 +116,10 @@ func New(opts ...Option) (*driver, error) {
 
 	d.httpClient = client
 
-	minutes := c.ReachPeakAfter.Minutes()
-	if minutes > 0 {
-		d.usersPerMinute = d.TargetUsers - d.UsersToStartWith/int(minutes)
+	if c.ReachPeakAfter.Minutes() > 0 {
+		d.usersPerMinute = (c.TargetUsers - c.UsersToStartWith) / int(c.ReachPeakAfter.Minutes())
 	} else {
-		d.usersPerMinute = d.TargetUsers
+		d.usersPerMinute = c.TargetUsers
 	}
 
 	if c.UsersToStartWith == 0 {
@@ -137,6 +138,7 @@ func New(opts ...Option) (*driver, error) {
 	}
 	d.config = c
 	d.endAt = time.After(d.ReachPeakAfter)
+
 	return d, nil
 }
 
@@ -149,10 +151,10 @@ func (d *driver) Run(ctx context.Context) {
 	// Tick every RampupEvery amd ramp up the user rate
 	go func() {
 		ticker := time.NewTicker(time.Minute)
-
 		for {
 			select {
 			case <-ticker.C:
+				log.Println("############ Ramping up ##############")
 				for i := 0; i < d.usersPerMinute; i++ {
 					wg.Add(1)
 					go func() {
@@ -182,11 +184,13 @@ func (d *driver) Run(ctx context.Context) {
 	}
 
 	wg.Wait()
+
 }
 
 func (d *driver) doRequestAndReturnStats(ctx context.Context,
 	method string, url string, body []byte) (*RequestStat, error) {
 
+	log.Printf("Making request %s %s \n ", d.URL, d.Method)
 	stat := RequestStat{}
 	start := time.Now()
 	req, err := http.NewRequestWithContext(ctx,
@@ -202,6 +206,8 @@ func (d *driver) doRequestAndReturnStats(ctx context.Context,
 		return nil, err
 	}
 
+	log.Println("Response status code is ", res.StatusCode)
+
 	defer res.Body.Close()
 
 	if slices.Contains(d.SuccessStatusCodes, res.StatusCode) {
@@ -210,7 +216,7 @@ func (d *driver) doRequestAndReturnStats(ctx context.Context,
 
 	elapsed := time.Since(start)
 
-	stat.TimeTakenInSeconds = int(elapsed.Seconds())
+	stat.TimeTakenInSeconds = elapsed.Seconds()
 
 	return &stat, nil
 }
@@ -218,8 +224,6 @@ func (d *driver) doRequestAndReturnStats(ctx context.Context,
 // Given a stat for a request modify the struct variables
 func (d *driver) processStat(s *RequestStat) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	d.totalNumberOfRequests += 1
 	d.responseTimeInSeconds = append(d.responseTimeInSeconds, s.TimeTakenInSeconds)
 
@@ -229,6 +233,9 @@ func (d *driver) processStat(s *RequestStat) {
 		d.requestsFailed += 1
 	}
 
+	d.mu.Unlock()
+
+	log.Printf("Stat is +%v \n", s)
 }
 
 func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
