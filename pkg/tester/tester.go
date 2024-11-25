@@ -28,6 +28,9 @@ type Config struct {
 	// Body to send in the request
 	Body interface{}
 
+	// Headers if any
+	Headers http.Header
+
 	// Accepted http status success codes defaults to 200
 	SuccessStatusCodes []int
 }
@@ -57,6 +60,17 @@ func WithRequestConfig(url string, body interface{}, acceptedStatusCodes ...int)
 		c.Body = body
 		c.SuccessStatusCodes = append(c.SuccessStatusCodes, acceptedStatusCodes...)
 
+	}
+}
+
+// Option fn to configure custom headers for the request if needed
+func WithHeaders(headers map[string]string) Option {
+	return func(c *Config) {
+		h := http.Header{}
+		for k, v := range headers {
+			h.Set(k, v)
+		}
+		c.Headers = h
 	}
 }
 
