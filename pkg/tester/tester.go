@@ -144,7 +144,9 @@ func (d *driver) Run(ctx context.Context) {
 			select {
 			case <-ticker.C:
 				for i := 0; i < d.usersPerMinute; i++ {
+					wg.Add(1)
 					go func() {
+						defer wg.Done()
 						stat, err := d.doRequestAndReturnStats(ctx, d.Method, d.URL, d.marshalledBody)
 						if err != nil {
 							log.Println("error in doing request ", err)
