@@ -1,3 +1,3 @@
 module github.com/VarthanV/load-tester
 
-go 1.22.6
+go 1.23
