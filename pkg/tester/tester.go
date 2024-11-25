@@ -92,6 +92,7 @@ func New(opts ...Option) (*driver, error) {
 	}
 	c := config{
 		SuccessStatusCodes: []int{http.StatusOK},
+		Headers:            http.Header{},
 	}
 
 	for _, op := range opts {
@@ -113,7 +114,16 @@ func New(opts ...Option) (*driver, error) {
 
 	d.httpClient = client
 
-	d.usersPerMinute = d.TargetUsers - d.UsersToStartWith/int(d.ReachPeakAfter.Minutes())
+	minutes := c.ReachPeakAfter.Minutes()
+	if minutes > 0 {
+		d.usersPerMinute = d.TargetUsers - d.UsersToStartWith/int(minutes)
+	} else {
+		d.usersPerMinute = d.TargetUsers
+	}
+
+	if c.UsersToStartWith == 0 {
+		c.UsersToStartWith = 1
+	}
 
 	if c.Body != nil {
 		marshalled, err := json.Marshal(c.Body)
@@ -125,7 +135,7 @@ func New(opts ...Option) (*driver, error) {
 		d.marshalledBody = marshalled
 
 	}
-
+	d.config = c
 	d.endAt = time.After(d.ReachPeakAfter)
 	return d, nil
 }
@@ -147,15 +157,7 @@ func (d *driver) Run(ctx context.Context) {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
-						stat, err := d.doRequestAndReturnStats(ctx, d.Method, d.URL, d.marshalledBody)
-						if err != nil {
-							log.Println("error in doing request ", err)
-							d.processStat(&RequestStat{
-								IsSuccess: false,
-							})
-							return
-						}
-						d.processStat(stat)
+						d.doRequestAndReturnStatsDriver(ctx)
 					}()
 				}
 
@@ -171,9 +173,12 @@ func (d *driver) Run(ctx context.Context) {
 	}()
 
 	// Start with  the intial users first
-
 	for i := 0; i < d.config.UsersToStartWith; i++ {
-
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			d.doRequestAndReturnStatsDriver(ctx)
+		}()
 	}
 
 	wg.Wait()
@@ -224,4 +229,16 @@ func (d *driver) processStat(s *RequestStat) {
 		d.requestsFailed += 1
 	}
 
+}
+
+func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
+	stat, err := d.doRequestAndReturnStats(ctx, d.Method, d.URL, d.marshalledBody)
+	if err != nil {
+		log.Println("error in doing request ", err)
+		d.processStat(&RequestStat{
+			IsSuccess: false,
+		})
+		return
+	}
+	d.processStat(stat)
 }
