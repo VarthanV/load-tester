@@ -187,7 +187,8 @@ func (d *driver) Run(ctx context.Context) {
 	<-d.endAt
 
 	// Compute report
-
+	r := d.computeReport()
+	log.Printf("Report is %+v", r)
 }
 
 func (d *driver) doRequestAndReturnStats(ctx context.Context,
@@ -238,7 +239,6 @@ func (d *driver) processStat(s *RequestStat) {
 
 	d.mu.Unlock()
 
-	log.Printf("Stat is +%v \n", s)
 }
 
 func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
@@ -253,7 +253,15 @@ func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
 	d.processStat(stat)
 }
 
-func (d *driver) computeReport() {
-	
+// Computes report post the load testing is done
+func (d *driver) computeReport() *Report {
+	r := Report{}
+	d.computeAverageResponseTime(&r)
+	return &r
+}
 
+func (d *driver) computeAverageResponseTime(r *Report) {
+	sum := sum(d.responseTimeInSeconds)
+	avgResponseTime := sum / float64(d.totalNumberOfRequests)
+	r.AverageResponseTime = avgResponseTime
 }
