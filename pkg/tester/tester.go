@@ -45,7 +45,7 @@ func WithPeakConfig(usersDuringPeakLimit int, reachPeakAfter time.Duration,
 	usersToStartWith int) Option {
 	return func(c *config) {
 		c.ReachPeakAfter = reachPeakAfter
-		c.UsersToStartWith = 10
+		c.UsersToStartWith = usersToStartWith
 		c.TargetUsers = usersDuringPeakLimit
 	}
 }
@@ -143,7 +143,6 @@ func New(opts ...Option) (*driver, error) {
 }
 
 func (d *driver) Run(ctx context.Context) {
-
 	var (
 		wg sync.WaitGroup
 	)
@@ -154,7 +153,7 @@ func (d *driver) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				log.Println("############ Ramping up ##############")
+				log.Printf("############ Ramping up %d users ##############\n", d.usersPerMinute)
 				for i := 0; i < d.usersPerMinute; i++ {
 					wg.Add(1)
 					go func() {
@@ -174,6 +173,7 @@ func (d *driver) Run(ctx context.Context) {
 
 	}()
 
+	log.Println("Starting with users ", d.config.UsersToStartWith)
 	// Start with  the intial users first
 	for i := 0; i < d.config.UsersToStartWith; i++ {
 		wg.Add(1)
@@ -184,6 +184,9 @@ func (d *driver) Run(ctx context.Context) {
 	}
 
 	wg.Wait()
+	<-d.endAt
+
+	// Compute report
 
 }
 
@@ -248,4 +251,9 @@ func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
 		return
 	}
 	d.processStat(stat)
+}
+
+func (d *driver) computeReport() {
+	
+
 }
