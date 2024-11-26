@@ -83,7 +83,7 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 			log.Fatalf("Failed to create load tester: %v", err)
 		}
 
-		fmt.Println("Starting the load testing...")
+		fmt.Println("Starting for id ", t.UUID)
 		driver.Run(context.Background())
 
 	}()
