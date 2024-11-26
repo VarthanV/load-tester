@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -77,13 +76,13 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 				request.TargetUsers,
 				time.Duration(request.ReachPeakAferInMinutes*int(time.Minute)),
 				request.UsersToStartWith),
-			tester.WithRequestConfig(request.URL, nil, 200),
+			tester.WithRequestConfig(request.URL, nil, request.SuccessStatusCodes...),
 		)
 		if err != nil {
-			log.Fatalf("Failed to create load tester: %v", err)
+			log.Printf("Failed to create load tester: %v\n", err)
 		}
 
-		fmt.Println("Starting for id ", t.UUID)
+		log.Println("Starting for id ", t.UUID)
 		driver.Run(context.Background())
 
 	}()

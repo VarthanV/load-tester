@@ -10,6 +10,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // config: config for the tester to function
@@ -36,6 +38,8 @@ type config struct {
 
 	// Accepted http status success codes defaults to 200
 	SuccessStatusCodes []int
+
+	db *gorm.DB
 }
 
 type Option func(*config)
@@ -68,6 +72,12 @@ func WithHeaders(headers map[string]string) Option {
 			h.Set(k, v)
 		}
 		c.Headers = h
+	}
+}
+
+func WithDB(db *gorm.DB) Option {
+	return func(c *config) {
+		c.db = db
 	}
 }
 
