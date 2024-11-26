@@ -12,11 +12,11 @@ type Report struct {
 	// The number of requests the system successfully handles per second
 	Throughput float64 `json:"throughput"`
 
-	P50Percentile int `json:"p_50_percentile"`
+	P50Percentile float64 `json:"p_50_percentile"`
 
-	P90Percentile int `json:"p_90_percentile"`
+	P90Percentile float64 `json:"p_90_percentile"`
 
-	P99Percentile int `json:"p_99_percentile"`
+	P99Percentile float64 `json:"p_99_percentile"`
 }
 
 type RequestStat struct {

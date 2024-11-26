@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"sort"
 	"sync"
 	"time"
 
@@ -156,62 +157,60 @@ func (d *driver) Run(ctx context.Context) {
 		ramupWg sync.WaitGroup
 	)
 
-	ramupWg.Add(1)
-	endCtx, cancel := context.WithTimeout(ctx, d.ReachPeakAfter*time.Minute)
-	defer cancel()
+	jobQueue := make(chan struct{}, d.TargetUsers)
 
+	workerCount := d.TargetUsers
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range jobQueue {
+				d.doRequestAndReturnStatsDriver(ctx)
+			}
+		}()
+	}
+
+	ramupWg.Add(1)
 	go func() {
 		defer ramupWg.Done()
-		ticker := time.NewTicker(time.Minute)
+
+		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+
+		usersAdded := 0
+		usersToAddPerSecond := d.usersPerMinute / 60
+		if d.usersPerMinute%60 != 0 {
+			usersToAddPerSecond += 1
+		}
 
 		for {
 			select {
 			case <-ticker.C:
-				if d.totalNumberOfRequests == d.TargetUsers {
-					return
+				for i := 0; i < usersToAddPerSecond; i++ {
+					if usersAdded >= (d.TargetUsers - d.UsersToStartWith) {
+						return
+					}
+					jobQueue <- struct{}{}
+					usersAdded++
 				}
-				log.Printf("############ Ramping up %d users ##############\n", d.usersPerMinute)
-				for i := 0; i < d.usersPerMinute; i++ {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						d.doRequestAndReturnStatsDriver(ctx)
-					}()
-				}
-
-			case <-endCtx.Done():
-				log.Println("end ctx deadline exceeded")
+			case <-ctx.Done():
 				return
-			default:
-				if d.totalNumberOfRequests == d.TargetUsers {
-					log.Println("attained target users")
-					return
-				}
-
 			}
 		}
 	}()
 
-	// Start with the initial users
-	log.Println("Starting with users ", d.config.UsersToStartWith)
-	for i := 0; i < d.config.UsersToStartWith; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			d.doRequestAndReturnStatsDriver(ctx)
-		}()
+	// Start with initial users
+	for i := 0; i < d.UsersToStartWith; i++ {
+		jobQueue <- struct{}{}
 	}
 
-	// Wait for ramup to finish
 	ramupWg.Wait()
-	// Wait for all to finish
+	close(jobQueue)
 	wg.Wait()
 
-	log.Println("total req is ", d.totalNumberOfRequests)
-	// Compute report
+	log.Println("Total requests:", d.totalNumberOfRequests)
 	r := d.computeReport()
-	log.Printf("Report is %+v", r)
+	log.Printf("Report: %+v", r)
 }
 
 func (d *driver) doRequestAndReturnStats(ctx context.Context,
@@ -250,6 +249,7 @@ func (d *driver) doRequestAndReturnStats(ctx context.Context,
 
 // Given a stat for a request modify the struct variables
 func (d *driver) processStat(s *RequestStat) {
+	// FIXME: high contention is there in this can be simplified by using atomic
 	d.mu.Lock()
 	d.totalNumberOfRequests += 1
 	d.responseTimeInSeconds = append(d.responseTimeInSeconds, s.TimeTakenInSeconds)
@@ -279,12 +279,34 @@ func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
 // Computes report post the load testing is done
 func (d *driver) computeReport() *Report {
 	r := Report{}
-	d.computeAverageResponseTime(&r)
-	return &r
-}
 
-func (d *driver) computeAverageResponseTime(r *Report) {
-	sum := sum(d.responseTimeInSeconds)
-	avgResponseTime := sum / float64(d.totalNumberOfRequests)
-	r.AverageResponseTime = avgResponseTime
+	totalRequests := d.totalNumberOfRequests
+	if totalRequests == 0 {
+		log.Println("No requests made. Cannot compute report.")
+		return &r
+	}
+
+	// Compute average response time
+	sum := 0.0
+	for _, t := range d.responseTimeInSeconds {
+		sum += t
+	}
+	r.AverageResponseTime = sum / float64(totalRequests)
+
+	// Compute peak response time
+	r.PeakResponseTime = max(d.responseTimeInSeconds)
+
+	// Compute error rate
+	r.ErrorRate = float64(d.requestsFailed) / float64(totalRequests)
+
+	// Compute throughput
+	r.Throughput = float64(d.requestsSucceeded) / d.ReachPeakAfter.Seconds()
+
+	// Compute percentiles
+	sort.Float64s(d.responseTimeInSeconds)
+	r.P50Percentile = percentile(d.responseTimeInSeconds, 50)
+	r.P90Percentile = percentile(d.responseTimeInSeconds, 90)
+	r.P99Percentile = percentile(d.responseTimeInSeconds, 99)
+
+	return &r
 }
