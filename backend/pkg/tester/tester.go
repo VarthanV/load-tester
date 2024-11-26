@@ -233,12 +233,14 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 					}
 					jobQueue <- struct{}{}
 					usersAdded++
-					// Whenever user ramped up signal to update stats in db
 
 				}
 
 			case <-updateTicker.C:
 				updateInDbJobQueue <- struct{}{}
+			case <-ctx.Done():
+				updateInDbJobQueue <- struct{}{}
+				return
 
 			}
 		}
