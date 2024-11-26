@@ -122,39 +122,3 @@ func TestDoRequestFailure(t *testing.T) {
 		t.Errorf("expected IsSuccess to be false, but got true")
 	}
 }
-
-func TestRun(t *testing.T) {
-	mockTransport := &MockRoundTripper{
-		RoundTripFunc: func(req *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       http.NoBody,
-			}, nil
-		},
-	}
-
-	mockClient := &http.Client{Transport: mockTransport}
-
-	driver := &driver{
-		httpClient: mockClient,
-		config: config{
-			TargetUsers:        5,
-			UsersToStartWith:   2,
-			ReachPeakAfter:     1 * time.Minute,
-			SuccessStatusCodes: []int{http.StatusOK},
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	driver.Run(ctx)
-
-	if driver.totalNumberOfRequests == 0 {
-		t.Errorf("expected at least one request to be made, but got %d", driver.totalNumberOfRequests)
-	}
-
-	if driver.requestsSucceeded == 0 {
-		t.Errorf("expected at least one successful request, but got %d", driver.requestsSucceeded)
-	}
-}

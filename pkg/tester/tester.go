@@ -144,12 +144,19 @@ func New(opts ...Option) (*driver, error) {
 
 func (d *driver) Run(ctx context.Context) {
 	var (
-		wg sync.WaitGroup
+		wg      sync.WaitGroup
+		ramupWg sync.WaitGroup
 	)
 
-	// Tick every RampupEvery amd ramp up the user rate
+	ramupWg.Add(1)
+	endCtx, cancel := context.WithTimeout(ctx, d.ReachPeakAfter+1*time.Minute)
+	defer cancel()
+
 	go func() {
+		defer ramupWg.Done()
 		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ticker.C:
@@ -161,20 +168,16 @@ func (d *driver) Run(ctx context.Context) {
 						d.doRequestAndReturnStatsDriver(ctx)
 					}()
 				}
-
-			case <-ctx.Done():
-				ticker.Stop()
+			case <-endCtx.Done():
 				return
 			case <-d.endAt:
-				ticker.Stop()
 				return
 			}
 		}
-
 	}()
 
+	// Start with the initial users
 	log.Println("Starting with users ", d.config.UsersToStartWith)
-	// Start with  the intial users first
 	for i := 0; i < d.config.UsersToStartWith; i++ {
 		wg.Add(1)
 		go func() {
@@ -183,8 +186,10 @@ func (d *driver) Run(ctx context.Context) {
 		}()
 	}
 
+	// Wait for ramup to finish
+	ramupWg.Wait()
+	// Wait for all to finish
 	wg.Wait()
-	<-d.endAt
 
 	// Compute report
 	r := d.computeReport()
