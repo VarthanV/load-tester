@@ -77,13 +77,14 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 				time.Duration(request.ReachPeakAferInMinutes*int(time.Minute)),
 				request.UsersToStartWith),
 			tester.WithRequestConfig(request.URL, nil, request.SuccessStatusCodes...),
+			tester.WithDB(c.DB),
 		)
 		if err != nil {
 			log.Printf("Failed to create load tester: %v\n", err)
 		}
 
 		log.Println("Starting for id ", t.UUID)
-		driver.Run(ctx)
+		driver.Run(ctx, t.UUID)
 
 	}()
 
@@ -93,8 +94,24 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 }
 
 func (c *Controller) GetTest(ctx *gin.Context) {
-	testID := ctx.Param("test_id")
+	var (
+		test = models.Test{}
+	)
+	testID := ctx.Param("id")
 	if testID == "" {
 		ctx.AbortWithError(http.StatusBadRequest, errors.New("invalid test id"))
+		return
 	}
+
+	err := c.DB.Model(&models.Test{}).
+		Where(&models.Test{
+			UUID: uuid.MustParse(testID),
+		}).Last(&test).Error
+	if err != nil {
+		log.Println("erorr in getting tests ", err)
+		ctx.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, test)
 }

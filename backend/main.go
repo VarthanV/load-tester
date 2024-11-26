@@ -3,19 +3,33 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/VarthanV/load-tester/controllers"
 	"github.com/VarthanV/load-tester/models"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func main() {
 
 	r := gin.Default()
 
-	db, err := gorm.Open(sqlite.Open("load_tester.db"), &gorm.Config{})
+	dbLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold:             time.Second,
+			LogLevel:                  logger.Info,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  true,
+		},
+	)
+	db, err := gorm.Open(sqlite.Open("load_tester.db"), &gorm.Config{
+		Logger: dbLogger,
+	})
 	if err != nil {
 		log.Fatal("error in opening db ", err)
 	}
@@ -31,6 +45,8 @@ func main() {
 	})
 
 	r.POST("/test", ctrl.ExecuteTest)
+
+	r.GET("/test/:id", ctrl.GetTest)
 
 	r.Run(":8060")
 

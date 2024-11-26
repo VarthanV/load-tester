@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VarthanV/load-tester/models"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -151,13 +153,47 @@ func New(opts ...Option) (*driver, error) {
 	return d, nil
 }
 
-func (d *driver) Run(ctx context.Context) {
+func (d *driver) updateInDB(testID uuid.UUID) {
+	err := d.db.Model(&models.Test{}).Where(&models.Test{
+		UUID: testID,
+	}).Updates(&models.Test{
+		TotalRequests:     d.totalNumberOfRequests,
+		SucceededRequests: d.requestsSucceeded,
+		FailedRequests:    d.requestsFailed,
+	}).Error
+	if err != nil {
+		log.Println("unable to update ", err)
+	}
+}
+
+func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 	var (
 		wg      sync.WaitGroup
 		ramupWg sync.WaitGroup
 	)
 
 	jobQueue := make(chan struct{}, d.TargetUsers)
+
+	wg.Add(1)
+
+	// Worker to update changes in db every 30 second
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(time.Second * 30)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				d.updateInDB(testID)
+			case <-ctx.Done():
+				// Update remaining and return
+				d.updateInDB(testID)
+				return
+			}
+
+		}
+	}()
 
 	workerCount := d.TargetUsers
 	for i := 0; i < workerCount; i++ {
