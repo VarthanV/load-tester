@@ -94,6 +94,7 @@ type driver struct {
 	responseTimeInSeconds []float64
 	requestsSucceeded     int
 	requestsFailed        int
+	report                *Report
 }
 
 func New(opts ...Option) (*driver, error) {
@@ -154,12 +155,25 @@ func New(opts ...Option) (*driver, error) {
 }
 
 func (d *driver) updateInDB(testID uuid.UUID) {
-	err := d.db.Model(&models.Test{}).Where(&models.Test{
+	var (
+		marshalledReport []byte
+		err              error
+	)
+
+	if d.report != nil {
+		marshalledReport, err = json.Marshal(d.report)
+		if err != nil {
+			log.Println("unable to marshal report ", err)
+		}
+	}
+
+	err = d.db.Model(&models.Test{}).Where(&models.Test{
 		UUID: testID,
 	}).Updates(&models.Test{
 		TotalRequests:     d.totalNumberOfRequests,
 		SucceededRequests: d.requestsSucceeded,
 		FailedRequests:    d.requestsFailed,
+		Report:            marshalledReport,
 	}).Error
 	if err != nil {
 		log.Println("unable to update ", err)
@@ -173,25 +187,13 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 	)
 
 	jobQueue := make(chan struct{}, d.TargetUsers)
+	updateInDbJobQueue := make(chan struct{}, d.TargetUsers/2)
 
 	wg.Add(1)
-
-	// Worker to update changes in db every 30 second
 	go func() {
 		defer wg.Done()
-		ticker := time.NewTicker(time.Second * 30)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				d.updateInDB(testID)
-			case <-ctx.Done():
-				// Update remaining and return
-				d.updateInDB(testID)
-				return
-			}
-
+		for range updateInDbJobQueue {
+			d.updateInDB(testID)
 		}
 	}()
 
@@ -209,7 +211,6 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 	ramupWg.Add(1)
 	go func() {
 		defer ramupWg.Done()
-
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
@@ -218,6 +219,10 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 		if d.usersPerMinute%60 != 0 {
 			usersToAddPerSecond += 1
 		}
+
+		updateTicker := time.NewTicker(time.Second * time.Duration(d.usersPerMinute))
+		defer updateTicker.Stop()
+		defer close(updateInDbJobQueue)
 
 		for {
 			select {
@@ -228,9 +233,13 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 					}
 					jobQueue <- struct{}{}
 					usersAdded++
+					// Whenever user ramped up signal to update stats in db
+
 				}
-			case <-ctx.Done():
-				return
+
+			case <-updateTicker.C:
+				updateInDbJobQueue <- struct{}{}
+
 			}
 		}
 	}()
@@ -245,8 +254,9 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 	wg.Wait()
 
 	log.Println("Total requests:", d.totalNumberOfRequests)
-	r := d.computeReport()
-	log.Printf("Report: %+v", r)
+	d.report = d.computeReport()
+	d.updateInDB(testID)
+	log.Printf("Report: %+v", d.report)
 }
 
 func (d *driver) doRequestAndReturnStats(ctx context.Context,
