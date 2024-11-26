@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/VarthanV/load-tester/controllers"
+	"github.com/VarthanV/load-tester/models"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -19,6 +20,10 @@ func main() {
 		log.Fatal("error in opening db ", err)
 	}
 
+	err = db.AutoMigrate(&[]models.Test{})
+	if err != nil {
+		log.Fatal("unable to migrate tables ", err)
+	}
 	ctrl := controllers.Controller{DB: db}
 
 	r.GET("/ping", func(ctx *gin.Context) {

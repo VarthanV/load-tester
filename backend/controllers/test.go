@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -83,11 +83,18 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 		}
 
 		log.Println("Starting for id ", t.UUID)
-		driver.Run(context.Background())
+		driver.Run(ctx)
 
 	}()
 
 	ctx.JSON(http.StatusCreated, CreateTestResponse{
 		ID: t.UUID,
 	})
+}
+
+func (c *Controller) GetTest(ctx *gin.Context) {
+	testID := ctx.Param("test_id")
+	if testID == "" {
+		ctx.AbortWithError(http.StatusBadRequest, errors.New("invalid test id"))
+	}
 }

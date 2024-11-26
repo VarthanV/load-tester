@@ -87,7 +87,6 @@ type driver struct {
 	httpClient            *http.Client
 	marshalledBody        []byte
 	usersPerMinute        int
-	endAt                 <-chan time.Time
 	totalNumberOfRequests int
 	responseTimeInSeconds []float64
 	requestsSucceeded     int
@@ -147,7 +146,6 @@ func New(opts ...Option) (*driver, error) {
 
 	}
 	d.config = c
-	d.endAt = time.After(d.ReachPeakAfter)
 
 	return d, nil
 }
@@ -159,7 +157,7 @@ func (d *driver) Run(ctx context.Context) {
 	)
 
 	ramupWg.Add(1)
-	endCtx, cancel := context.WithTimeout(ctx, d.ReachPeakAfter+1*time.Minute)
+	endCtx, cancel := context.WithTimeout(ctx, d.ReachPeakAfter*time.Minute)
 	defer cancel()
 
 	go func() {
@@ -170,6 +168,9 @@ func (d *driver) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
+				if d.totalNumberOfRequests == d.TargetUsers {
+					return
+				}
 				log.Printf("############ Ramping up %d users ##############\n", d.usersPerMinute)
 				for i := 0; i < d.usersPerMinute; i++ {
 					wg.Add(1)
@@ -178,10 +179,16 @@ func (d *driver) Run(ctx context.Context) {
 						d.doRequestAndReturnStatsDriver(ctx)
 					}()
 				}
+
 			case <-endCtx.Done():
+				log.Println("end ctx deadline exceeded")
 				return
-			case <-d.endAt:
-				return
+			default:
+				if d.totalNumberOfRequests == d.TargetUsers {
+					log.Println("attained target users")
+					return
+				}
+
 			}
 		}
 	}()
@@ -201,6 +208,7 @@ func (d *driver) Run(ctx context.Context) {
 	// Wait for all to finish
 	wg.Wait()
 
+	log.Println("total req is ", d.totalNumberOfRequests)
 	// Compute report
 	r := d.computeReport()
 	log.Printf("Report is %+v", r)
