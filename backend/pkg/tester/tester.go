@@ -41,12 +41,12 @@ type config struct {
 type Option func(*config)
 
 // Option fn to configure peak  limit
-func WithPeakConfig(usersDuringPeakLimit int, reachPeakAfter time.Duration,
+func WithPeakConfig(targetUsers int, reachPeakAfter time.Duration,
 	usersToStartWith int) Option {
 	return func(c *config) {
 		c.ReachPeakAfter = reachPeakAfter
 		c.UsersToStartWith = usersToStartWith
-		c.TargetUsers = usersDuringPeakLimit
+		c.TargetUsers = targetUsers
 	}
 }
 

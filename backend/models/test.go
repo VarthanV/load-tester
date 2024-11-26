@@ -9,6 +9,13 @@ import (
 	"gorm.io/gorm"
 )
 
+type Status string
+
+const (
+	StatusInProgress Status = "IN_PROGRESS"
+	StatusDone       Status = "DONE"
+)
+
 type Test struct {
 	gorm.Model
 
@@ -20,10 +27,14 @@ type Test struct {
 	TargetUsers             int                             `json:"target_users,omitempty"`
 	ReachPeakAfterInMinutes int                             `json:"reach_peak_after_in_minutes,omitempty"`
 	UsersToStartWith        int                             `json:"users_to_start_with,omitempty"`
+	Status                  Status                          `json:"status,omitempty"`
 
 	Report datatypes.JSONType[tester.Report] `json:"report,omitempty"`
 }
 
-type testRepo struct {
-	db *gorm.DB
+func (t *Test) BeforeCreate(tx *gorm.DB) error {
+	if t.UUID == uuid.Nil {
+		t.UUID = uuid.New()
+	}
+	return nil
 }
