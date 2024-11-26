@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
@@ -29,7 +28,5 @@ func main() {
 	r.POST("/test", ctrl.ExecuteTest)
 
 	r.Run(":8060")
-
-	fmt.Println("Load testing completed or timed out.")
 
 }
