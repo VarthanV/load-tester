@@ -1,30 +1,34 @@
-
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <div>
-      <Navbar/>
-    </div>,
+    element: (
+      <div>
+        <Navbar />
+      </div>
+    ),
   },
   {
-    path:"/test",
-    element:<CreateTestRequest/>,
-  }
+    path: "/test",
+    element: (
+      <>
+        <Navbar />
+        <CreateTestRequest />{" "}
+      </>
+    ),
+  },
 ]);
 
-
-
-import Navbar from './components/Navbar';
-import CreateTestRequest from './pages/CreateTestRequest';
+import Navbar from "./components/Navbar";
+import CreateTestRequest from "./pages/CreateTestRequest";
 
 function App() {
   return (
     <>
-    <RouterProvider  router={router} />
+      <RouterProvider router={router} />
     </>
-  )
+  );
 }
 
-export default App
+export default App;

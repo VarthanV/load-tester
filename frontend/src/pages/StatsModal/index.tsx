@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import {
   Box,
   Button,
@@ -8,15 +7,20 @@ import {
 } from "@mui/material";
 
 
-export default function StatsModal() {
-  const [open, setOpen] = useState(false);
+type Stat = {
+  total_numberof_requests: number,
+  succeeded_requests: number,
+  failed_requests: number,
+  target_users: number,
+}
+interface Props {
+  open: boolean;
+  stats: Stat
+  setOpen: (val:boolean) => void
+}
 
-  const stats = {
-    total_numberof_requests: 14,
-    succeeded_requests: 14,
-    failed_requests: 0,
-    target_users: 100,
-  };
+export default function StatsModal({open,stats,setOpen}:Props) {
+
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
