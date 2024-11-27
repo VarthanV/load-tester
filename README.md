@@ -1,6 +1,6 @@
 # Load Tester
 
-The Load Tester is a Go-based application for stress testing and benchmarking APIs. It simulates multiple users making HTTP requests to evaluate the performance, reliability, and scalability of a system under different levels of load.
+The Load Tester is a Go-based application for stress testing and benchmarking HTTP APIs. It simulates multiple users making HTTP requests to evaluate the performance, reliability, and scalability of a system under different levels of load.
 
 ## Features
 
