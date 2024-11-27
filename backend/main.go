@@ -8,6 +8,7 @@ import (
 
 	"github.com/VarthanV/load-tester/controllers"
 	"github.com/VarthanV/load-tester/models"
+	"github.com/VarthanV/load-tester/pkg/liveupdate"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -38,7 +39,10 @@ func main() {
 	if err != nil {
 		log.Fatal("unable to migrate tables ", err)
 	}
-	ctrl := controllers.Controller{DB: db}
+
+	// Intiailize live updater
+
+	ctrl := controllers.Controller{DB: db, Updates: liveupdate.New()}
 
 	r.GET("/ping", func(ctx *gin.Context) {
 		ctx.String(http.StatusOK, "pong")
@@ -47,6 +51,7 @@ func main() {
 	r.POST("/test", ctrl.ExecuteTest)
 
 	r.GET("/test/:id", ctrl.GetTest)
+	r.GET("/test/:id/updates", ctrl.GetUpdate)
 
 	r.Run(":8060")
 

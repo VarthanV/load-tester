@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/VarthanV/load-tester/models"
+	"github.com/VarthanV/load-tester/pkg/liveupdate"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -87,21 +88,24 @@ func WithDB(db *gorm.DB) Option {
 
 type driver struct {
 	config
-	mu                    sync.Mutex
-	httpClient            *http.Client
-	marshalledBody        []byte
-	usersPerMinute        int
-	totalNumberOfRequests atomic.Int32
-	responseTimeInSeconds []float64
-	requestsSucceeded     atomic.Int32
-	requestsFailed        atomic.Int32
-	report                *Report
+	mu                        sync.Mutex
+	httpClient                *http.Client
+	marshalledBody            []byte
+	usersPerMinute            int
+	totalNumberOfRequestsDone atomic.Int32
+	responseTimeInSeconds     []float64
+	requestsSucceeded         atomic.Int32
+	requestsFailed            atomic.Int32
+	report                    *Report
+	updater                   liveupdate.Updater
+	testID                    uuid.UUID
 }
 
-func New(opts ...Option) (*driver, error) {
+func New(updater liveupdate.Updater, opts ...Option) (*driver, error) {
 	d := &driver{
 		mu:                    sync.Mutex{},
 		responseTimeInSeconds: make([]float64, 0),
+		updater:               updater,
 	}
 	c := config{
 		SuccessStatusCodes: []int{http.StatusOK},
@@ -168,7 +172,7 @@ func (d *driver) updateInDB(testID uuid.UUID) {
 	err = d.db.Model(&models.Test{}).Where(&models.Test{
 		UUID: testID,
 	}).Updates(&models.Test{
-		TotalRequests:     d.totalNumberOfRequests.Load(),
+		TotalRequests:     d.totalNumberOfRequestsDone.Load(),
 		SucceededRequests: d.requestsSucceeded.Load(),
 		FailedRequests:    d.requestsFailed.Load(),
 		Report:            marshalledReport,
@@ -187,6 +191,7 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 	jobQueue := make(chan struct{}, d.TargetUsers)
 	updateInDbJobQueue := make(chan struct{}, d.TargetUsers/2)
 
+	d.testID = testID
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -253,7 +258,7 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 	close(jobQueue)
 	wg.Wait()
 
-	log.Println("Total requests:", d.totalNumberOfRequests)
+	log.Println("Total requests:", d.totalNumberOfRequestsDone.Load())
 	d.report = d.computeReport()
 	d.updateInDB(testID)
 	log.Printf("Report: %+v", d.report)
@@ -299,13 +304,20 @@ func (d *driver) processStat(s *RequestStat) {
 	d.responseTimeInSeconds = append(d.responseTimeInSeconds, s.TimeTakenInSeconds)
 	d.mu.Unlock()
 
-	d.totalNumberOfRequests.Add(1)
+	d.totalNumberOfRequestsDone.Add(1)
 
 	if s.IsSuccess {
 		d.requestsSucceeded.Add(1)
 	} else {
 		d.requestsFailed.Add(1)
 	}
+
+	d.updater.Set(d.testID, &liveupdate.Update{
+		TotalNumberofRequestsDone: d.totalNumberOfRequestsDone.Load(),
+		SucceededRequests:         d.requestsSucceeded.Load(),
+		FailedRequests:            d.requestsFailed.Load(),
+		TargetUsers:               int32(d.TargetUsers),
+	})
 
 }
 
@@ -325,7 +337,7 @@ func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
 func (d *driver) computeReport() *Report {
 	r := Report{}
 
-	totalRequests := d.totalNumberOfRequests.Load()
+	totalRequests := d.totalNumberOfRequestsDone.Load()
 	if totalRequests == 0 {
 		log.Println("No requests made. Cannot compute report.")
 		return &r

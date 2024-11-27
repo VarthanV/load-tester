@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/VarthanV/load-tester/models"
+	"github.com/VarthanV/load-tester/pkg/liveupdate"
 	"github.com/VarthanV/load-tester/pkg/tester"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 type CreateTestRequest struct {
@@ -26,6 +28,11 @@ type CreateTestRequest struct {
 
 type CreateTestResponse struct {
 	ID uuid.UUID `json:"id"` // Used to poll later and get report later
+}
+
+type GetUpdateResponse struct {
+	Update *liveupdate.Update `json:"update"`
+	Test   *models.Test       `json:"test"`
 }
 
 func (c *Controller) ExecuteTest(ctx *gin.Context) {
@@ -72,6 +79,7 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 
 	go func() {
 		driver, err := tester.New(
+			c.Updates,
 			tester.WithPeakConfig(
 				request.TargetUsers,
 				time.Duration(request.ReachPeakAferInMinutes*int(time.Minute)),
@@ -114,4 +122,45 @@ func (c *Controller) GetTest(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, test)
+}
+
+func (c *Controller) GetUpdate(ctx *gin.Context) {
+	var (
+		res  = GetUpdateResponse{}
+		test *models.Test
+	)
+	testID := ctx.Param("id")
+	if testID == "" {
+		ctx.AbortWithError(http.StatusBadRequest, errors.New("invalid test id"))
+		return
+	}
+
+	update, err := c.Updates.Get(uuid.MustParse(testID))
+	if err != nil {
+		logrus.Error("error in getting update ", err)
+
+	}
+
+	res.Update = update
+
+	if update != nil &&
+		update.TargetUsers ==
+			update.TotalNumberofRequestsDone ||
+		update == nil {
+		// No need for report to be held from here on reached end
+		// game
+		c.Updates.Delete(uuid.MustParse(testID))
+		// Report might be ready can fetch it
+		err := c.DB.
+			Model(&models.Test{}).
+			Where(&models.Test{
+				UUID: uuid.MustParse(testID),
+			}).Last(&test).Error
+		if err != nil {
+			logrus.Error("unable to get test ")
+		}
+		res.Test = test
+	}
+
+	ctx.JSON(http.StatusOK, res)
 }

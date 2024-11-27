@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/VarthanV/load-tester/pkg/liveupdate"
 )
 
 type MockRoundTripper struct {
@@ -42,6 +44,7 @@ func TestProcessStat(t *testing.T) {
 
 func TestNewDriver(t *testing.T) {
 	driver, err := New(
+		liveupdate.New(),
 		WithPeakConfig(50, 10*time.Minute, 10),
 		WithRequestConfig("http://example.com", map[string]string{"key": "value"}, http.StatusOK),
 		WithHeaders(map[string]string{"Content-Type": "application/json"}),
