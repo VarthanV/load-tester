@@ -18,14 +18,26 @@ const router = createBrowserRouter([
       </>
     ),
   },
+  {
+    path: "/test/:id",
+    element: (
+      <>
+        <Navbar />
+        <MetricsPage />{" "}
+      </>
+    ),
+  },
 ]);
 
 import Navbar from "./components/Navbar";
 import CreateTestRequest from "./pages/CreateTestRequest";
+import { Toaster } from "react-hot-toast";
+import MetricsPage from "./pages/MetricsPage";
 
 function App() {
   return (
     <>
+      <Toaster />
       <RouterProvider router={router} />
     </>
   );

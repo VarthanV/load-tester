@@ -32,7 +32,7 @@ export default function CreateTestRequest() {
     setSuccess(null);
 
     try {
-      const response = await fetch(`${API_URL}/test`, {
+      const response = await fetch(`${API_URL}/tests`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

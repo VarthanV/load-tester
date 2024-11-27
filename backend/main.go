@@ -1,16 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/VarthanV/load-tester/config"
 	"github.com/VarthanV/load-tester/controllers"
 	"github.com/VarthanV/load-tester/models"
 	"github.com/VarthanV/load-tester/pkg/liveupdate"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -19,6 +23,11 @@ import (
 func main() {
 
 	r := gin.Default()
+
+	cfg, err := config.Load()
+	if err != nil {
+		logrus.Fatal("error in loading cfg ", err)
+	}
 
 	dbLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
@@ -29,7 +38,7 @@ func main() {
 			Colorful:                  true,
 		},
 	)
-	db, err := gorm.Open(sqlite.Open("load_tester.db"), &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(cfg.Database.DatabaseName), &gorm.Config{
 		Logger: dbLogger,
 	})
 	if err != nil {
@@ -42,16 +51,13 @@ func main() {
 	}
 
 	corsConfig := cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:5173",
-		},
+		AllowOrigins: strings.Split(cfg.Server.AllowedHosts, ","),
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders: []string{
 			"Content-Length",
 		},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour, // Cache duration
+		MaxAge: 12 * time.Hour, // Cache duration
 	}
 
 	ctrl := controllers.Controller{DB: db, Updates: liveupdate.New()}
@@ -61,11 +67,13 @@ func main() {
 		ctx.String(http.StatusOK, "pong")
 	})
 
-	r.POST("/test", ctrl.ExecuteTest)
+	testsGroup := r.Group("/tests")
 
-	r.GET("/test/:id", ctrl.GetTest)
-	r.GET("/test/:id/updates", ctrl.GetUpdate)
+	testsGroup.POST("", ctrl.ExecuteTest)
 
-	r.Run(":8060")
+	testsGroup.GET("/:id", ctrl.GetTest)
+	testsGroup.GET("/:id/updates", ctrl.GetUpdate)
+
+	r.Run(fmt.Sprintf(":%s", cfg.Server.Port))
 
 }

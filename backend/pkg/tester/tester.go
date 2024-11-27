@@ -170,14 +170,20 @@ func (d *driver) updateInDB(testID uuid.UUID) {
 		}
 	}
 
-	err = d.db.Model(&models.Test{}).Where(&models.Test{
-		UUID: testID,
-	}).Updates(&models.Test{
+	t := &models.Test{
 		TotalRequests:     d.totalNumberOfRequestsDone.Load(),
 		SucceededRequests: d.requestsSucceeded.Load(),
 		FailedRequests:    d.requestsFailed.Load(),
 		Report:            marshalledReport,
-	}).Error
+	}
+
+	if d.totalNumberOfRequestsDone.Load() == int32(d.TargetUsers) {
+		t.Status = models.StatusDone
+	}
+
+	err = d.db.Model(&models.Test{}).Where(&models.Test{
+		UUID: testID,
+	}).Updates(t).Error
 	if err != nil {
 		logrus.Error("unable to update ", err)
 	}
@@ -269,6 +275,7 @@ func (d *driver) doRequestAndReturnStats(ctx context.Context,
 	method string, url string, body []byte) (*RequestStat, error) {
 
 	log.Printf("Making request %s %s \n ", d.URL, d.Method)
+	d.totalNumberOfRequestsDone.Add(1)
 	stat := RequestStat{}
 	start := time.Now()
 	req, err := http.NewRequestWithContext(ctx,
@@ -304,8 +311,6 @@ func (d *driver) processStat(s *RequestStat) {
 	d.mu.Lock()
 	d.responseTimeInSeconds = append(d.responseTimeInSeconds, s.TimeTakenInSeconds)
 	d.mu.Unlock()
-
-	d.totalNumberOfRequestsDone.Add(1)
 
 	if s.IsSuccess {
 		d.requestsSucceeded.Add(1)
