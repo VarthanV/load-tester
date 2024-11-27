@@ -43,7 +43,7 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
-		log.Println("error in binding request ", err)
+		logrus.Error("error in binding request ", err)
 		ctx.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
@@ -51,7 +51,7 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 	if request.Body != nil {
 		body, err = json.Marshal(request.Body)
 		if err != nil {
-			log.Println("error in marshalling body ", err)
+			logrus.Error("error in marshalling body ", err)
 			ctx.AbortWithError(http.StatusInternalServerError, err)
 			return
 		}
@@ -72,7 +72,7 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 		Model(&models.Test{}).
 		Create(t).Error
 	if err != nil {
-		log.Println("error in creating test ", err)
+		logrus.Error("error in creating test ", err)
 		ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
@@ -91,7 +91,7 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 			log.Printf("Failed to create load tester: %v\n", err)
 		}
 
-		log.Println("Starting for id ", t.UUID)
+		logrus.Info("Starting for id ", t.UUID)
 		driver.Run(ctx, t.UUID)
 
 	}()
@@ -116,7 +116,7 @@ func (c *Controller) GetTest(ctx *gin.Context) {
 			UUID: uuid.MustParse(testID),
 		}).Last(&test).Error
 	if err != nil {
-		log.Println("erorr in getting tests ", err)
+		logrus.Error("erorr in getting tests ", err)
 		ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}

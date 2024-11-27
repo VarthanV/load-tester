@@ -16,6 +16,7 @@ import (
 	"github.com/VarthanV/load-tester/models"
 	"github.com/VarthanV/load-tester/pkg/liveupdate"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
@@ -144,7 +145,7 @@ func New(updater liveupdate.Updater, opts ...Option) (*driver, error) {
 	if c.Body != nil {
 		marshalled, err := json.Marshal(c.Body)
 		if err != nil {
-			log.Println("unable to marshal body ", err)
+			logrus.Error("unable to marshal body ", err)
 			return nil, err
 		}
 
@@ -165,7 +166,7 @@ func (d *driver) updateInDB(testID uuid.UUID) {
 	if d.report != nil {
 		marshalledReport, err = json.Marshal(d.report)
 		if err != nil {
-			log.Println("unable to marshal report ", err)
+			logrus.Error("unable to marshal report ", err)
 		}
 	}
 
@@ -178,7 +179,7 @@ func (d *driver) updateInDB(testID uuid.UUID) {
 		Report:            marshalledReport,
 	}).Error
 	if err != nil {
-		log.Println("unable to update ", err)
+		logrus.Error("unable to update ", err)
 	}
 }
 
@@ -258,10 +259,10 @@ func (d *driver) Run(ctx context.Context, testID uuid.UUID) {
 	close(jobQueue)
 	wg.Wait()
 
-	log.Println("Total requests:", d.totalNumberOfRequestsDone.Load())
+	logrus.Info("Total requests:", d.totalNumberOfRequestsDone.Load())
 	d.report = d.computeReport()
 	d.updateInDB(testID)
-	log.Printf("Report: %+v", d.report)
+	logrus.Infof("Report: %+v", d.report)
 }
 
 func (d *driver) doRequestAndReturnStats(ctx context.Context,
@@ -279,11 +280,11 @@ func (d *driver) doRequestAndReturnStats(ctx context.Context,
 	}
 	res, err := d.httpClient.Do(req)
 	if err != nil {
-		log.Println("error in doing request", err)
+		logrus.Error("error in doing request", err)
 		return nil, err
 	}
 
-	log.Println("Response status code is ", res.StatusCode)
+	logrus.Info("Response status code is ", res.StatusCode)
 
 	defer res.Body.Close()
 
@@ -324,7 +325,7 @@ func (d *driver) processStat(s *RequestStat) {
 func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
 	stat, err := d.doRequestAndReturnStats(ctx, d.Method, d.URL, d.marshalledBody)
 	if err != nil {
-		log.Println("error in doing request ", err)
+		logrus.Error("error in doing request ", err)
 		d.processStat(&RequestStat{
 			IsSuccess: false,
 		})
@@ -339,7 +340,7 @@ func (d *driver) computeReport() *Report {
 
 	totalRequests := d.totalNumberOfRequestsDone.Load()
 	if totalRequests == 0 {
-		log.Println("No requests made. Cannot compute report.")
+		logrus.Error("No requests made. Cannot compute report.")
 		return &r
 	}
 
@@ -364,6 +365,9 @@ func (d *driver) computeReport() *Report {
 	r.P50Percentile = percentile(d.responseTimeInSeconds, 50)
 	r.P90Percentile = percentile(d.responseTimeInSeconds, 90)
 	r.P99Percentile = percentile(d.responseTimeInSeconds, 99)
+	r.SucceededRequests = d.requestsSucceeded.Load()
+	r.FailedRequests = d.requestsFailed.Load()
+	r.RequestedDone = d.totalNumberOfRequestsDone.Load()
 
 	return &r
 }

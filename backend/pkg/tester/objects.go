@@ -17,6 +17,12 @@ type Report struct {
 	P90Percentile float64 `json:"p_90_percentile"`
 
 	P99Percentile float64 `json:"p_99_percentile"`
+
+	SucceededRequests int32 `json:"succeeded_requests"`
+
+	FailedRequests int32 `json:"failed_requests"`
+
+	RequestedDone int32 `json:"requested_done"`
 }
 
 type RequestStat struct {

@@ -2,10 +2,10 @@ package liveupdate
 
 import (
 	"errors"
-	"log"
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 type Update struct {
@@ -38,13 +38,13 @@ func (ur *updater) Set(id uuid.UUID, u *Update) {
 func (ur *updater) Get(id uuid.UUID) (*Update, error) {
 	u, ok := ur.m.Load(id)
 	if !ok {
-		log.Println("error in getting update")
+		logrus.Error("error in getting update")
 		return nil, errors.New("error in getting update")
 	}
 
 	update, ok := u.(*Update)
 	if !ok {
-		log.Println("erorr in getting update")
+		logrus.Error("erorr in getting update")
 		return nil, errors.New("error in getting update")
 
 	}
