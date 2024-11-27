@@ -71,6 +71,7 @@ export default function CreateTestRequest() {
 
     const interval = setInterval(async () => {
       try {
+        setIsPolling(true);
         const response = await fetch(`${API_URL}/tests/${testId}/updates`, {
           method: "GET",
         });
@@ -89,6 +90,8 @@ export default function CreateTestRequest() {
       } catch (err) {
         console.error("Polling error:", err);
         clearInterval(interval);
+      } finally {
+        setIsPolling(false);
       }
     }, 2000);
 

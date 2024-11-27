@@ -26,7 +26,6 @@ type Test struct {
 	TargetUsers             int                             `json:"target_users,omitempty"`
 	ReachPeakAfterInMinutes int                             `json:"reach_peak_after_in_minutes,omitempty"`
 	UsersToStartWith        int                             `json:"users_to_start_with,omitempty"`
-	Status                  Status                          `json:"status,omitempty"`
 	TotalRequests           int32                           `json:"total_requests,omitempty"`
 	SucceededRequests       int32                           `json:"succeeded_requests,omitempty"`
 	FailedRequests          int32                           `json:"failed_requests,omitempty"`

@@ -177,10 +177,6 @@ func (d *driver) updateInDB(testID uuid.UUID) {
 		Report:            marshalledReport,
 	}
 
-	if d.totalNumberOfRequestsDone.Load() == int32(d.TargetUsers) {
-		t.Status = models.StatusDone
-	}
-
 	err = d.db.Model(&models.Test{}).Where(&models.Test{
 		UUID: testID,
 	}).Updates(t).Error

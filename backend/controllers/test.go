@@ -64,7 +64,6 @@ func (c *Controller) ExecuteTest(ctx *gin.Context) {
 		UsersToStartWith:        request.UsersToStartWith,
 		TargetUsers:             request.TargetUsers,
 		ReachPeakAfterInMinutes: request.ReachPeakAferInMinutes,
-		Status:                  models.StatusInProgress,
 	}
 
 	err = c.
