@@ -9,6 +9,7 @@ import (
 	"github.com/VarthanV/load-tester/controllers"
 	"github.com/VarthanV/load-tester/models"
 	"github.com/VarthanV/load-tester/pkg/liveupdate"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -40,10 +41,22 @@ func main() {
 		log.Fatal("unable to migrate tables ", err)
 	}
 
-	// Intiailize live updater
+	corsConfig := cors.Config{
+		AllowOrigins: []string{
+			"http://localhost:5173",
+		},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders: []string{
+			"Content-Length",
+		},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour, // Cache duration
+	}
 
 	ctrl := controllers.Controller{DB: db, Updates: liveupdate.New()}
 
+	r.Use(cors.New(corsConfig))
 	r.GET("/ping", func(ctx *gin.Context) {
 		ctx.String(http.StatusOK, "pong")
 	})
