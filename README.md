@@ -33,6 +33,9 @@ The test generates a detailed report with the following metrics:
 
 # Screenshots
 
+## List all tests
+![List all](./assets/list-all.png)
+---
 ## Intial page
 ![Initial](./assets/initial.png)
 

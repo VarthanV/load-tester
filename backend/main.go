@@ -73,6 +73,7 @@ func main() {
 
 	testsGroup.GET("/:id", ctrl.GetTest)
 	testsGroup.GET("/:id/updates", ctrl.GetUpdate)
+	testsGroup.GET("", ctrl.ListAllTests)
 
 	r.Run(fmt.Sprintf(":%s", cfg.Server.Port))
 

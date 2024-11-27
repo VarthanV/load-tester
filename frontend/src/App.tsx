@@ -6,6 +6,7 @@ const router = createBrowserRouter([
     element: (
       <div>
         <Navbar />
+        <HomePage/>
       </div>
     ),
   },
@@ -33,6 +34,7 @@ import Navbar from "./components/Navbar";
 import CreateTestRequest from "./pages/CreateTestRequest";
 import { Toaster } from "react-hot-toast";
 import MetricsPage from "./pages/MetricsPage";
+import HomePage from "./pages/HomePage";
 
 function App() {
   return (

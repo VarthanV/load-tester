@@ -163,3 +163,20 @@ func (c *Controller) GetUpdate(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, res)
 }
+
+func (c *Controller) ListAllTests(ctx *gin.Context) {
+	var (
+		tests = []models.Test{}
+	)
+
+	err := c.DB.
+		Model(&models.Test{}).
+		Where(&models.Test{}).Find(&tests).Error
+	if err != nil {
+		logrus.Error("error in getting test ", err)
+		ctx.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, tests)
+
+}
