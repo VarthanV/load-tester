@@ -27,12 +27,12 @@ func TestProcessStat(t *testing.T) {
 	stat := &RequestStat{IsSuccess: true, TimeTakenInSeconds: 5}
 	driver.processStat(stat)
 
-	if driver.requestsSucceeded != 1 {
-		t.Errorf("expected 1 successful request, got %d", driver.requestsSucceeded)
+	if driver.requestsSucceeded.Load() != 1 {
+		t.Errorf("expected 1 successful request, got %d", driver.requestsSucceeded.Load())
 	}
 
-	if driver.requestsFailed != 0 {
-		t.Errorf("expected 0 failed requests, got %d", driver.requestsFailed)
+	if driver.requestsFailed.Load() != 0 {
+		t.Errorf("expected 0 failed requests, got %d", driver.requestsFailed.Load())
 	}
 
 	if len(driver.responseTimeInSeconds) != 1 || driver.responseTimeInSeconds[0] != 5 {

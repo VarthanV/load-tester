@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/VarthanV/load-tester/models"
@@ -90,20 +91,17 @@ type driver struct {
 	httpClient            *http.Client
 	marshalledBody        []byte
 	usersPerMinute        int
-	totalNumberOfRequests int
+	totalNumberOfRequests atomic.Int32
 	responseTimeInSeconds []float64
-	requestsSucceeded     int
-	requestsFailed        int
+	requestsSucceeded     atomic.Int32
+	requestsFailed        atomic.Int32
 	report                *Report
 }
 
 func New(opts ...Option) (*driver, error) {
 	d := &driver{
 		mu:                    sync.Mutex{},
-		totalNumberOfRequests: 0,
 		responseTimeInSeconds: make([]float64, 0),
-		requestsSucceeded:     0,
-		requestsFailed:        0,
 	}
 	c := config{
 		SuccessStatusCodes: []int{http.StatusOK},
@@ -170,9 +168,9 @@ func (d *driver) updateInDB(testID uuid.UUID) {
 	err = d.db.Model(&models.Test{}).Where(&models.Test{
 		UUID: testID,
 	}).Updates(&models.Test{
-		TotalRequests:     d.totalNumberOfRequests,
-		SucceededRequests: d.requestsSucceeded,
-		FailedRequests:    d.requestsFailed,
+		TotalRequests:     d.totalNumberOfRequests.Load(),
+		SucceededRequests: d.requestsSucceeded.Load(),
+		FailedRequests:    d.requestsFailed.Load(),
 		Report:            marshalledReport,
 	}).Error
 	if err != nil {
@@ -297,18 +295,17 @@ func (d *driver) doRequestAndReturnStats(ctx context.Context,
 
 // Given a stat for a request modify the struct variables
 func (d *driver) processStat(s *RequestStat) {
-	// FIXME: high contention is there in this can be simplified by using atomic
 	d.mu.Lock()
-	d.totalNumberOfRequests += 1
 	d.responseTimeInSeconds = append(d.responseTimeInSeconds, s.TimeTakenInSeconds)
+	d.mu.Unlock()
+
+	d.totalNumberOfRequests.Add(1)
 
 	if s.IsSuccess {
-		d.requestsSucceeded += 1
+		d.requestsSucceeded.Add(1)
 	} else {
-		d.requestsFailed += 1
+		d.requestsFailed.Add(1)
 	}
-
-	d.mu.Unlock()
 
 }
 
@@ -328,7 +325,7 @@ func (d *driver) doRequestAndReturnStatsDriver(ctx context.Context) {
 func (d *driver) computeReport() *Report {
 	r := Report{}
 
-	totalRequests := d.totalNumberOfRequests
+	totalRequests := d.totalNumberOfRequests.Load()
 	if totalRequests == 0 {
 		log.Println("No requests made. Cannot compute report.")
 		return &r
@@ -345,10 +342,10 @@ func (d *driver) computeReport() *Report {
 	r.PeakResponseTime = max(d.responseTimeInSeconds)
 
 	// Compute error rate
-	r.ErrorRate = float64(d.requestsFailed) / float64(totalRequests)
+	r.ErrorRate = float64(d.requestsFailed.Load()) / float64(totalRequests)
 
 	// Compute throughput
-	r.Throughput = float64(d.requestsSucceeded) / d.ReachPeakAfter.Seconds()
+	r.Throughput = float64(d.requestsSucceeded.Load()) / d.ReachPeakAfter.Seconds()
 
 	// Compute percentiles
 	sort.Float64s(d.responseTimeInSeconds)
