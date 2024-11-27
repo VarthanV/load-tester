@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from "react";
-import { Box, TextField, Button, MenuItem, Typography, CircularProgress } from "@mui/material";
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  TextField,
+  Button,
+  MenuItem,
+  Typography,
+  CircularProgress,
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
 
 export default function CreateTestRequest() {
   const [formData, setFormData] = useState({
@@ -14,8 +22,12 @@ export default function CreateTestRequest() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [testId, setTestId] = useState<string | null>(null);
+  const [update, setUpdate] = useState<any>(null);
+  const [isPolling, setIsPolling] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL; 
+  const API_URL = import.meta.env.VITE_API_URL;
+  const navigate = useNavigate();
 
   const handleChange = (e: any) => {
     const { name, value } = e.target;
@@ -45,14 +57,43 @@ export default function CreateTestRequest() {
       }
 
       const data = await response.json();
-      setSuccess("Request submitted successfully!");
-      console.log("Response Data:", data);
+      setTestId(data.id); // Store the ID from the response
+      setSuccess("Request submitted successfully, Polling updates!");
     } catch (err: any) {
       setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!testId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`${API_URL}/tests/${testId}/updates`, {
+          method: "GET",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status} - ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        setUpdate(data.update);
+
+        if (data.update === null) {
+          clearInterval(interval);
+          navigate(`/test/${testId}`);
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+        clearInterval(interval);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [testId]);
 
   return (
     <>
@@ -143,6 +184,27 @@ export default function CreateTestRequest() {
 
         {success && <Typography color="green">{success}</Typography>}
         {error && <Typography color="red">{error}</Typography>}
+        {testId && (
+          <Typography variant="h5" className="mt">
+            {" "}
+            Real Time updates
+          </Typography>
+        )}
+
+        {update ? (
+          !isPolling ? (
+            <Box>
+              <Typography>
+                Total Requests: {update.total_numberof_requests}
+              </Typography>
+              <Typography>Succeeded: {update.succeeded_requests}</Typography>
+              <Typography>Failed: {update.failed_requests}</Typography>
+              <Typography>Target Users: {update.target_users}</Typography>
+            </Box>
+          ) : (
+            <CircularProgress />
+          )
+        ) : null}
       </Box>
     </>
   );
